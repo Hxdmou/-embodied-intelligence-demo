@@ -55,17 +55,43 @@ RAG十套系统一键启动（便携版·本地大模型）
 
 ## 目录结构
 
+便携版真实目录结构如下：
+
 ```text
-├── 一键启动RAG系统.bat      # [主入口] 便携版数字菜单，启动十套RAG问答系统
-├── 关闭所有系统.bat         # 一键关闭已启动的问答系统
-├── 合并模型到本机.bat       # 合并 Ollama 本地大模型（qwen3:8b）到本机
-├── rag.py                  # RAG 核心逻辑代码
-├── demo_screenshot.png     # 系统运行实录（问答界面）
-├── launch_menu.png         # 一键启动数字菜单界面（便携版）
-├── Demo启动菜单.bat         # 其它演示菜单（机械臂/仿真等演示）
-├── start_demo.bat          # 备用启动脚本
-├── start_robot.bat         # 机械臂演示启动脚本
-├── 启动PyBullet仿真.bat     # PyBullet 机械臂仿真
-├── 启动训练好的智能体.bat   # PPO 训练智能体演示
-└── README.md               # 项目说明文档
+├── 一键启动RAG系统.bat        # [主入口] 数字菜单，启动十套RAG问答系统
+├── 关闭所有系统.bat           # 一键关闭已启动的问答系统
+├── 合并模型到本机.bat         # 首次使用：合并 Ollama 本地大模型（qwen3:8b）
+├── rag.py                    # RAG 核心逻辑代码
+├── app/                      # 十套问答系统核心目录
+│   ├── run.py                # [1] 通用RAG智能问答系统（端口 7861）
+│   ├── legal_qa.py           # [2] 法律知识问答系统（端口 7869）
+│   ├── education_qa.py       # [3] 教育知识问答系统（端口 7870）
+│   ├── medical_qa.py         # [4] 医疗健康问答系统（端口 7871）
+│   ├── finance_qa.py         # [5] 金融知识问答系统（端口 7872）
+│   ├── tech_qa.py            # [6] IT技术问答系统（端口 7873）
+│   ├── e_commerce_qa.py      # [7] 电商零售问答系统（端口 7874）
+│   ├── government_qa.py      # [8] 政务服务问答系统（端口 7875）
+│   ├── hr_qa.py              # [9] 人力资源问答系统（端口 7876）
+│   ├── academic_qa.py        # [10] 科研学术问答系统（端口 7877）
+│   ├── rag.py                # RAG 核心模块（文档解析、检索、生成）
+│   ├── batch_processor.py    # 文档批处理模块
+│   ├── chat_history.py       # 对话历史模块
+│   ├── document_visualizer.py # 文档可视化模块
+│   ├── export_utils.py       # 导出工具模块
+│   ├── logger.py             # 日志模块
+│   ├── config/               # 系统配置目录
+│   ├── *_faiss_index/        # 各系统 FAISS 向量索引（共10套）
+│   ├── legal_knowledge_base/ # 法律知识库文档
+│   ├── exports/              # 导出文件目录
+│   └── logs/                 # 系统运行日志
+├── python/                   # 便携版 Python 3.12 运行环境（免安装）
+├── ollama/                   # 便携版 Ollama 大模型服务（含 qwen3:8b 模型）
+├── hf_cache/                 # HuggingFace 嵌入模型离线缓存
+├── embodied-intelligence/    # 具身智能演示工程（PPO 机械臂训练与推理）
+├── _PUBLIC_NTA_OUTPUT/       # 内含 EmbodiedSim-Framework 仿真框架
+├── Demo启动菜单.bat           # 其它演示菜单（机械臂/仿真等演示）
+├── start_demo.bat            # 备用启动脚本
+├── start_robot.bat           # 机械臂演示启动脚本
+├── 启动PyBullet仿真.bat       # PyBullet 机械臂仿真
+└── 启动训练好的智能体.bat     # PPO 训练智能体演示
 ```
