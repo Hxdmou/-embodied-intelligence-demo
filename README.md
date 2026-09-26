@@ -93,5 +93,8 @@ RAG十套系统一键启动（便携版·本地大模型）
 ├── start_demo.bat            # 备用启动脚本
 ├── start_robot.bat           # 机械臂演示启动脚本
 ├── 启动PyBullet仿真.bat       # PyBullet 机械臂仿真
-└── 启动训练好的智能体.bat     # PPO 训练智能体演示
+├── 启动训练好的智能体.bat     # PPO 训练智能体演示
+├── demo_screenshot.png       # 系统运行实录截图（问答界面）
+├── launch_menu.png           # 一键启动数字菜单界面截图（便携版）
+└── README.md                 # 项目说明文档
 ```
