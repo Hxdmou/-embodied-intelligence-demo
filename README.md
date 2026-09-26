@@ -52,3 +52,20 @@ RAG十套系统一键启动（便携版·本地大模型）
 ## 文档支持
 
 支持 PDF、Word、Excel、Markdown、TXT、HTML 六类文档解析；单文件上限50MB，单次最多上传10个文件；问答准确率95%以上，回答附检索出处。
+
+## 目录结构
+
+```text
+├── 一键启动RAG系统.bat      # [主入口] 便携版数字菜单，启动十套RAG问答系统
+├── 关闭所有系统.bat         # 一键关闭已启动的问答系统
+├── 合并模型到本机.bat       # 合并 Ollama 本地大模型（qwen3:8b）到本机
+├── rag.py                  # RAG 核心逻辑代码
+├── demo_screenshot.png     # 系统运行实录（问答界面）
+├── launch_menu.png         # 一键启动数字菜单界面（便携版）
+├── Demo启动菜单.bat         # 其它演示菜单（机械臂/仿真等演示）
+├── start_demo.bat          # 备用启动脚本
+├── start_robot.bat         # 机械臂演示启动脚本
+├── 启动PyBullet仿真.bat     # PyBullet 机械臂仿真
+├── 启动训练好的智能体.bat   # PPO 训练智能体演示
+└── README.md               # 项目说明文档
+```
