@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-title RAG十套系统一键启动（便携版·本地大模型）
+title 垂直领域企业级RAG智能问答系统 V3.1.0
 cls
 pushd "%~dp0"
 
@@ -41,7 +41,7 @@ cls
 echo.
 echo ==============================================================
 echo.
-echo        RAG十套系统一键启动（便携版·本地大模型）
+echo        垂直领域企业级RAG智能问答系统 V3.1.0
 echo.
 echo ==============================================================
 echo.
