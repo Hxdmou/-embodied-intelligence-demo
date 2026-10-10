@@ -470,7 +470,7 @@ class RobotHAL:
             "mycobot": RobotBrand.ELEPHANT,
             "ufactory": RobotBrand.UFACTORY,
             "xarm": RobotBrand.UFACTORY,
-            "jaka": RobotBrand.JAKA,
+            "jaka": RobotBrand.JAKA_ZU,
             "jaka_zu": RobotBrand.JAKA_ZU,
             "zu7": RobotBrand.JAKA_ZU,
             "zu12": RobotBrand.JAKA_ZU,

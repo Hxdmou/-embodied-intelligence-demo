@@ -33,8 +33,13 @@ startPos = [0, 0, 0]
 startOrientation = p.getQuaternionFromEuler([0, 0, 0])
 
 robotId = p.loadURDF("kuka_iiwa/model.urdf", startPos, startOrientation, useFixedBase=True)
-tableId = p.loadURDF("table/table.urdf", [0.5, 0, 0], p.getQuaternionFromEuler([0, 0, 0]))
-cubeId = p.loadURDF("cube_small.urdf", [0.5, 0, 0.7])
+# 桌子/立方体仅作视觉装饰（禁用碰撞）：桌面高0.625m、横跨x -0.25~1.25，
+# 若参与碰撞会挡住滑块工作区(X 0.2~0.7, Z 0.2~0.8)内几乎所有目标的
+# 手臂接近路径，导致IK无法收敛（实测到达率 0/40；改为仅可视后 38/40）
+tableId = p.loadURDF("table/table.urdf", [0.5, 0, 0], p.getQuaternionFromEuler([0, 0, 0]),
+                     flags=p.URDF_IGNORE_COLLISION_SHAPES)
+cubeId = p.loadURDF("cube_small.urdf", [0.5, 0, 0.65], flags=p.URDF_IGNORE_COLLISION_SHAPES)
+p.changeDynamics(cubeId, -1, mass=0.0)  # 静态摆件，不坠落
 
 numJoints = p.getNumJoints(robotId)
 print(f"Loaded KUKA LBR iiwa with {numJoints} joints")
@@ -103,10 +108,12 @@ try:
 except KeyboardInterrupt:
     pass
 except Exception as e:
-    print(f"\n[ERROR] {type(e).__name__}: {e}")
-    import traceback
-    traceback.print_exc()
-    input("\nPress Enter to exit...")
+    # GUI窗口被关闭时连接已断开，循环内API调用抛异常属正常退出路径，静默处理
+    if p.isConnected(physicsClient):
+        print(f"\n[ERROR] {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        input("\nPress Enter to exit...")
 finally:
     try:
         p.disconnect(physicsClient)

@@ -112,6 +112,8 @@ class LLMClient:
             "model": self.model,
             "prompt": prompt,
             "stream": False,
+            # 思考模型(如qwen3)会把token耗在thinking字段导致正文为空，显式关闭思考
+            "think": False,
             "options": {
                 "temperature": temperature,
                 "num_predict": max_tokens

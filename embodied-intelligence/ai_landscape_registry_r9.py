@@ -12,9 +12,16 @@ import os
 import importlib.util
 
 _CONTENT_DIR = r"F:\个人作品\新内容资讯"
+_LOCAL_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def _load_registry_part(filename):
     fpath = os.path.join(_CONTENT_DIR, filename)
+    if not os.path.exists(fpath):
+        # 兜底：外部内容目录缺失时回退到本地同名编号文件，文件不存在则跳过
+        local_path = os.path.join(_LOCAL_DIR, filename)
+        if not os.path.exists(local_path):
+            return []
+        fpath = local_path
     mod_name = f"_reg_part_{filename.replace('（', 'cn').replace('）', '').replace('.py', '')}"
     spec = importlib.util.spec_from_file_location(mod_name, fpath)
     module = importlib.util.module_from_spec(spec)

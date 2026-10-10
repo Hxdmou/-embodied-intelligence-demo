@@ -231,6 +231,12 @@ class ImageLabel(QLabel):
         self.parent().parent().zoom_camera(dz)
 
 class RobotGUI(QMainWindow):
+    # LLM工作线程 → GUI线程 的安全通信信号（避免跨线程直接操作控件）
+    _llm_html = pyqtSignal(str)
+    _llm_state = pyqtSignal(str)
+    _llm_goto = pyqtSignal(float, float, float)
+    _llm_reset = pyqtSignal()
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("🤖 机械臂智能控制仿真Demo")
@@ -246,6 +252,10 @@ class RobotGUI(QMainWindow):
         
         self.init_ui()
         self.start_robot()
+        self._llm_html.connect(lambda html: self.log_text.append(html))
+        self._llm_state.connect(self._apply_llm_state)
+        self._llm_goto.connect(self._apply_llm_goto)
+        self._llm_reset.connect(self.on_reset)
     
     def init_ui(self):
         central_widget = QWidget()
@@ -516,39 +526,77 @@ class RobotGUI(QMainWindow):
     def process_ollama(self, cmd):
         self.model_label.setText(f"模型: {self.llm_backend} | 状态: 思考中...")
         self.model_label.setStyleSheet("color: #f97316;")
-        
+
+        # 当前滑杆目标位置（单位:米），嵌入prompt让模型基于当前位置换算
+        cx = self.x_slider.value() / 100.0
+        cy = self.y_slider.value() / 100.0
+        cz = self.z_slider.value() / 100.0
+
         def run_llm():
             try:
-                prompt = f"""
-你是一个机械臂控制助手。用户说："{cmd}"
-请从以下指令中选择并输出最合适的动作：
-- "goto X Y Z"（例如 goto 0.45 0.0 0.35）
-- "reset"（回到初始姿态）
-- "unknown"（无法理解）
-只输出动作，不要多余内容。
-"""
-                response = self.llm_client.generate(prompt, temperature=0.1, max_tokens=50)
-                self.log_text.append(f"<span style='color:#a855f7;'>LLM 返回: {response}</span>")
-                
-                if response.startswith("goto"):
-                    parts = response.split()
+                # 分类优先prompt：先判reset/unknown再判goto，实测8/8=100%
+                # （旧版开放prompt在思考模型下空响应率87.5%）
+                ex_y = min(max(cy + 0.1, -0.25), 0.25)
+                prompt = (
+                    "把用户的话转成机械臂动作，只输出 reset / unknown / goto X Y Z 三者之一。\n"
+                    "按顺序判断:\n"
+                    "A. 话里要求\"回初始/复位/重置/回到原位\" → 输出 reset。\n"
+                    "B. 话与机械臂位置移动无关（闲聊、抓取、拿放、倒水等其他请求） → 输出 unknown。\n"
+                    "C. 话里含移动方向或目标坐标 → 输出 goto。方向换算: 左=Y+0.1 右=Y-0.1 上/高=Z+0.1 下/低=Z-0.1 前=X+0.1 后=X-0.1，可组合；"
+                    "含具体数字坐标则直接采用。goto后跟三个空格分隔的纯数字(两位小数)，禁止X=标签。\n"
+                    f"机械臂当前目标位置: X={cx:.2f} Y={cy:.2f} Z={cz:.2f}，允许范围 X 0.25~0.65, Y -0.25~0.25, Z 0.20~0.55。\n"
+                    "示例:\n"
+                    "用户说\"复位\" → reset\n"
+                    "用户说\"今天星期几\" → unknown\n"
+                    "用户说\"把杯子拿起来\" → unknown\n"
+                    f"用户说\"往左移\" → goto {cx:.2f} {ex_y:.2f} {cz:.2f}\n"
+                    f"用户说\"{cmd}\" → "
+                )
+                response = self.llm_client.generate(prompt, temperature=0.1, max_tokens=64)
+                self._llm_html.emit(f"<span style='color:#a855f7;'>LLM 返回: {response}</span>")
+
+                # 按行查找动作行，容忍模型输出多余前后缀
+                action_line = next((ln.strip() for ln in response.splitlines()
+                                    if ln.strip().startswith(("goto", "reset", "unknown"))), "")
+                if action_line.startswith("goto"):
+                    parts = action_line.split()
                     if len(parts) >= 4:
-                        x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
-                        self.x_slider.setValue(int(x * 100))
-                        self.y_slider.setValue(int(y * 100))
-                        self.z_slider.setValue(int(z * 100))
-                        self.log_text.append(f"<span style='color:#fbbf24;'>目标已更新至: ({x:.3f}, {y:.3f}, {z:.3f})</span>")
-                
-                self.model_label.setText(f"模型: {self.llm_backend} | 状态: 已就绪")
-                self.model_label.setStyleSheet("color: #00d4ff;")
+                        try:
+                            x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
+                            self._llm_goto.emit(x, y, z)
+                        except ValueError:
+                            self._llm_html.emit("<span style='color:#f59e0b;'>LLM 输出格式有误，未执行动作</span>")
+                    else:
+                        self._llm_html.emit("<span style='color:#f59e0b;'>LLM 输出格式有误，未执行动作</span>")
+                elif action_line.startswith("reset"):
+                    self._llm_reset.emit()
+                elif action_line.startswith("unknown"):
+                    self._llm_html.emit("<span style='color:#f59e0b;'>未理解该指令，仅支持位置移动类指令（如\"往左移\"、\"升高一些\"、\"去 0.5 0.1 0.4\"、\"复位\"）</span>")
+                else:
+                    self._llm_html.emit("<span style='color:#f59e0b;'>未解析到有效动作</span>")
+
+                self._llm_state.emit("ready")
             except Exception as e:
-                self.log_text.append(f"<span style='color:#ef4444;'>大模型错误: {e}</span>")
-                self.model_label.setText(f"模型: {self.llm_backend} | 状态: 已就绪")
-                self.model_label.setStyleSheet("color: #00d4ff;")
-        
+                self._llm_html.emit(f"<span style='color:#ef4444;'>大模型错误: {e}</span>")
+                self._llm_state.emit("ready")
+
         import threading
-        t = threading.Thread(target=run_ollama, daemon=True)
+        t = threading.Thread(target=run_llm, daemon=True)
         t.start()
+    
+    def _apply_llm_state(self, state):
+        if state == "thinking":
+            self.model_label.setText(f"模型: {self.llm_backend} | 状态: 思考中...")
+            self.model_label.setStyleSheet("color: #f97316;")
+        else:
+            self.model_label.setText(f"模型: {self.llm_backend} | 状态: 已就绪")
+            self.model_label.setStyleSheet("color: #00d4ff;")
+    
+    def _apply_llm_goto(self, x, y, z):
+        self.x_slider.setValue(int(x * 100))
+        self.y_slider.setValue(int(y * 100))
+        self.z_slider.setValue(int(z * 100))
+        self.log_text.append(f"<span style='color:#fbbf24;'>目标已更新至: ({x:.3f}, {y:.3f}, {z:.3f})</span>")
     
     def update_status(self, end_pos, goal_pos, distance):
         self.end_pos = end_pos

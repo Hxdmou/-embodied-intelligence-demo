@@ -5,14 +5,14 @@
 判定结果为二值：✅通过 或 ❌不通过，禁止使用一切非绝对性中间表述
 
 检查模块：
-  1. 系统环境检查 - Python版本、依赖库、硬件资源
+  1. 系统环境检查 - Python版本、依赖库、硬件资源、国内最火仿真软件后端
   2. 配置完整性检查 - 所有配置文件存在且参数合法
   3. 安全防护检查 - 碰撞检测、急停系统、关节限位
-  4. 通信协议检查 - 机械臂连接、网络、协议栈
+  4. 通信协议检查 - 机械臂连接、网络、协议栈、最新品牌适配器与品牌→协议全部映射
   5. 模型部署检查 - AI模型文件、推理引擎、精度
   6. 数据记录检查 - 日志系统、数据采集、归档机制
   7. 性能压测检查 - CPU/内存/显存/延迟硬指标
-  8. 真机特定检查 - 机械臂型号、固件版本、校准状态
+  8. 真机特定检查 - 机械臂型号、固件版本、校准状态、最新品牌枚举与后端映射
   9. AI智能栈检查 - AI全景注册表、VLA模型后端、世界模型引擎、
                    6G/5G-A网络适配、工业机器人品牌适配、蚌埠本地产业适配
 
@@ -63,6 +63,57 @@ from enum import Enum
 _MAX_LOOPS = 10000000  # while True绝对硬上限10M次
 _MAX_EXECUTION_HOURS = 24  # 单任务最大执行时长24小时
 _CHECK_TIMEOUT_SECONDS = 30  # 单项检查最大超时30秒
+
+
+# ============================================================================
+# 最新品牌 + 国内使用最火热的仿真软件 + 全部映射（2026基线）
+# ============================================================================
+# 测试项目覆盖声明：全部测试项目均不涉及摄像头/视觉采集（除摄像头）
+TEST_ITEMS_NO_CAMERA = [
+    "model_load", "space_compatibility", "sim_to_real_adapter",
+    "inference_performance", "cd_lam_debias", "hardware_safety",
+    "sim_to_real_transfer", "stress_test",
+]
+
+# 最新机械臂品牌 → 协议映射（与 robot_arm_db.communication.protocol 一致）
+LATEST_ROBOT_ARM_BRANDS: Dict[str, Dict[str, str]] = {
+    "franka_panda": {"brand": "Franka Emika Panda/Research 3 (德国)", "protocol": "libfranka"},
+    "ur_ur5e": {"brand": "Universal Robots UR5e/UR20/UR30 (丹麦)", "protocol": "RTDE (Real-Time Data Exchange)"},
+    "kuka_iiwa14": {"brand": "KUKA LBR iiwa 14 (德国)", "protocol": "FRI (Fast Robot Interface)"},
+    "abb_yumi": {"brand": "ABB YuMi/GoFa (瑞士)", "protocol": "EGM (Externally Guided Motion)"},
+    "dobot_magician": {"brand": "越疆Dobot Magician (中国)", "protocol": "Dobot Protocol (Serial)"},
+    "airbot_p7": {"brand": "星动纪元Airbot P7 (中国)", "protocol": "AIRBOT SDK (Python/C++/ROS2)"},
+    "jaka_zu": {"brand": "节卡JAKA Zu系列 (中国)", "protocol": "JAKA TCP"},
+    "ufactory_xarm": {"brand": "UFACTORY xArm/CRA (中国)", "protocol": "UFACTORY TCP"},
+    "aubo_i": {"brand": "遨博AUBO i系列 (中国)", "protocol": "AUBO TCP"},
+    "flexiv_rizon": {"brand": "非夕Flexiv Rizon (中国)", "protocol": "Flexiv TCP"},
+}
+
+# 国内使用最火热的仿真软件（2026，与 sim_backends 注册表一致）
+HOT_SIM_BACKENDS: List[str] = ["pybullet", "mujoco", "isaac_sim", "ros2"]
+HOT_SIM_BACKEND_NAMES: Dict[str, str] = {
+    "pybullet": "PyBullet (开源轻量·默认兜底)",
+    "mujoco": "MuJoCo (高精度物理)",
+    "isaac_sim": "NVIDIA Isaac Sim/Isaac Lab (工业级光追)",
+    "ros2": "ROS2/Gazebo (行业标准生态)",
+}
+
+# 全部映射：最新品牌 → 协议适配器类（protocol_adapters 骨架层）
+BRAND_ADAPTER_MAPPING: Dict[str, str] = {
+    "kuka_fri": "KukaFRIAdapter",
+    "kuka_eki": "KukaEKIAdapter",
+    "ur_rtde": "URRTDEAdapter",
+    "abb_egm": "ABBEGMAdapter",
+    "abb_rapid": "ABBRapidAdapter",
+    "dobot_serial": "DobotSerialAdapter",
+    "dobot_tcp": "DobotTCPAdapter",
+    "airbot_tcp": "AirbotTCPAdapter",
+    "ufactory_tcp": "UFactoryTCPAdapter",
+    "jaka_tcp": "JakaTCPAdapter",
+    "buke_modbus": "BukeModbusAdapter",
+    "unitree_udp": "UnitreeUDPAdapter",
+    "deeprobotics_tcp": "DeepRoboticsTCPAdapter",
+}
 
 
 class CheckStatus(Enum):
@@ -318,6 +369,8 @@ class DeploymentReadinessChecker:
     # ------------------------------------------------------------------
     def _check_system_env(self):
         print("\n--- [1/9] 系统环境检查 ---")
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        sys.path.insert(0, base_dir)
         t0 = time.time()
 
         # 1.1 Python版本 >= 3.8
@@ -387,21 +440,23 @@ class DeploymentReadinessChecker:
             self._register("SYS-006", "磁盘空间(>=5GB)", "system_env", False,
                            f"检测失败: {e}", time.time() - t1)
 
-        # 1.7 仿真后端可用性（至少PyBullet可用）
+        # 1.7 仿真后端可用性（国内使用最火热的仿真软件，PyBullet兜底必须可用）
         t1 = time.time()
         try:
             from sim_backends import list_available_backends, PyBulletBackend
             available = list_available_backends()
             pybullet_ok = PyBulletBackend.is_available()
+            covered = [b for b in HOT_SIM_BACKENDS if b in available]
             ok = pybullet_ok and ("pybullet" in available)
             if ok:
-                detail = f"可用后端: {', '.join(available)} (PyBullet可用)"
+                names = ", ".join(HOT_SIM_BACKEND_NAMES.get(b, b) for b in covered)
+                detail = f"PyBullet可用(兜底保障); 热门后端在位: {names or '仅PyBullet'}"
             else:
-                detail = f"PyBullet不可用! 可用: {available}"
-            self._register("SYS-007", "仿真后端可用性(PyBullet)", "system_env",
+                detail = f"PyBullet不可用! 可用后端: {available}"
+            self._register("SYS-007", "仿真后端可用性(国内最火)", "system_env",
                            ok, detail, time.time() - t1)
         except Exception as e:
-            self._register("SYS-007", "仿真后端可用性(PyBullet)", "system_env",
+            self._register("SYS-007", "仿真后端可用性(国内最火)", "system_env",
                            False, f"检测失败: {e}", time.time() - t1)
 
     # ------------------------------------------------------------------
@@ -832,6 +887,46 @@ class DeploymentReadinessChecker:
             self._register("COM-006", "通信配置完整性", "comm_protocol",
                            False, f"检测失败: {e}", time.time() - t0)
 
+        # COM-007: 最新品牌协议适配器覆盖（全部映射，>=10个品牌适配器）
+        t0 = time.time()
+        try:
+            import protocol_adapters as pa
+            missing = [cls for cls in BRAND_ADAPTER_MAPPING.values()
+                       if not hasattr(pa, cls)]
+            total = len(BRAND_ADAPTER_MAPPING)
+            ok = len(missing) == 0
+            if ok:
+                detail = f"{total}个品牌协议适配器全部在位(含节卡/越疆/Airbot/UR/KUKA/ABB等)"
+            else:
+                detail = f"缺失适配器: {', '.join(missing)}"
+            self._register("COM-007", "最新品牌协议适配器覆盖(>=10)", "comm_protocol",
+                           ok, detail, time.time() - t0)
+        except Exception as e:
+            self._register("COM-007", "最新品牌协议适配器覆盖(>=10)", "comm_protocol",
+                           False, f"检测失败: {e}", time.time() - t0)
+
+        # COM-008: 机械臂数据库品牌→协议映射完整性（全部映射）
+        t0 = time.time()
+        try:
+            from robot_arm_db import ARM_DATABASE
+            issues = []
+            for arm_key, cfg in ARM_DATABASE.items():
+                proto = (cfg.get("communication", {}) or {}).get("protocol", "")
+                if not proto:
+                    issues.append(f"{arm_key}协议缺失")
+                    continue
+                expect = LATEST_ROBOT_ARM_BRANDS.get(arm_key, {}).get("protocol")
+                if expect and expect != proto:
+                    issues.append(f"{arm_key}协议映射不一致:{proto}!={expect}")
+            ok = len(issues) == 0 and len(ARM_DATABASE) >= 5
+            detail = (f"{len(ARM_DATABASE)}种机械臂品牌→协议映射完整"
+                      if ok else "; ".join(issues[:3]))
+            self._register("COM-008", "品牌→协议映射完整性", "comm_protocol",
+                           ok, detail, time.time() - t0)
+        except Exception as e:
+            self._register("COM-008", "品牌→协议映射完整性", "comm_protocol",
+                           False, f"检测失败: {e}", time.time() - t0)
+
     # ------------------------------------------------------------------
     # 5. 模型部署检查
     # ------------------------------------------------------------------
@@ -1105,6 +1200,35 @@ class DeploymentReadinessChecker:
             self._register("RBT-005", "真机连通检测", "robot_specific",
                            True, "sim模式跳过", time.time() - t0)
 
+        # RBT-006: 最新品牌枚举与后端→品牌全部映射（除摄像头外全部测试项目）
+        t0 = time.time()
+        try:
+            from real_robot_ready_system import RobotBrand, RobotHAL
+            required_members = ["PANDA", "UNIVERSAL_ROBOTS", "KUKA_LBR", "ABB_YUMI",
+                                "FANUC_CR", "DOOSAN", "UFACTORY", "JAKA_ZU",
+                                "AUBO", "ELITE", "FLEXIV", "AIRBOT_P7", "SIMULATION"]
+            member_names = {m.name for m in RobotBrand}
+            missing = [m for m in required_members if m not in member_names]
+            hal = RobotHAL(config={"backend": "simulation"})
+            brand = hal._detect_brand()
+            map_ok = brand == RobotBrand.SIMULATION
+            ok = len(missing) == 0 and map_ok
+            if ok:
+                detail = (f"RobotBrand含{len(member_names)}个品牌(最新品牌全覆盖)，"
+                          f"后端→品牌映射正确(simulation→SIMULATION)")
+            else:
+                parts = []
+                if missing:
+                    parts.append(f"缺失品牌: {', '.join(missing)}")
+                if not map_ok:
+                    parts.append(f"后端映射异常: {brand}")
+                detail = "; ".join(parts)
+            self._register("RBT-006", "最新品牌枚举+后端映射", "robot_specific",
+                           ok, detail, time.time() - t0)
+        except Exception as e:
+            self._register("RBT-006", "最新品牌枚举+后端映射", "robot_specific",
+                           False, f"检测失败: {e}", time.time() - t0)
+
     # ------------------------------------------------------------------
     # 9. AI智能栈检查（VLA模型/世界模型/AI全景/6G网络/蚌埠本地适配）
     # ------------------------------------------------------------------
@@ -1146,7 +1270,7 @@ class DeploymentReadinessChecker:
                 if total == 0:
                     parts.append("数据库为空")
                 if missing_cats:
-                    parts.append(f"缺失类别: {[c.value for c in missing_cats]}")
+                    parts.append(f"缺失类别: {sorted(missing_cats)}")
                 detail = "; ".join(parts)
             self._register("AIS-002", "AI全景22大类别覆盖", "ai_stack",
                            ok, detail, time.time() - t0)
@@ -1222,7 +1346,8 @@ class DeploymentReadinessChecker:
             from network_industry_adapter import INDUSTRIAL_ROBOT_PROFILES
             ir_total = len(INDUSTRIAL_ROBOT_PROFILES)
             ok = ir_total >= 3
-            detail = f"{ir_total}个品牌适配"
+            brands = ", ".join(sorted(INDUSTRIAL_ROBOT_PROFILES.keys()))
+            detail = f"{ir_total}个品牌适配: {brands}"
             self._register("AIS-007", "工业机器人品牌适配(>=3)", "ai_stack",
                            ok, detail, time.time() - t0)
         except Exception as e:
